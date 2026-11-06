@@ -1,0 +1,35 @@
+# Manager Library - infrastructure.
+# Starts an EMPTY PostgreSQL 16 engine: database, user and volume only.
+# All DDL (schema "library", tables, indexes, constraints, category seed)
+# belongs to the Laravel migrations in the api repo (ADR-001).
+name: manager-library
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: manager-library-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: UTC
+      PGTZ: UTC
+    command: ["postgres", "-c", "timezone=UTC"]
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - library-net
+
+volumes:
+  db-data:
+
+networks:
+  library-net:

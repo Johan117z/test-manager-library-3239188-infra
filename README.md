@@ -1,50 +1,66 @@
 # test-manager-library-3239188-infra
 
-> **Prueba técnica · Ficha ADSO 3239188**
-> Horario: **jueves 5 de noviembre de 2026, de 7:00 p. m. a 11:00 p. m.** (hora Colombia). Entrega a las **11:00 p. m.**
+Infrastructure for **Manager Library**: containers, network, volume and an **empty** PostgreSQL 16 engine.
 
-Este repositorio es la **infraestructura** de *Manager Library*: contenedores, red, volúmenes y el motor de base de datos vacío. **Empieza vacío a propósito**: se construye en el fork de cada aprendiz.
+> Exam: ADSO 3239188, Thursday 2026-11-05, 7:00 p.m. to 11:00 p.m. (Colombia). Stack: React (`app`) + Laravel (`api`).
+> Spec: [`test-manager-library-3239188-docs`](https://github.com/code-sena/test-manager-library-3239188-docs) (`spec-python/`).
 
-## Instrucciones
+## One-command startup
 
-Cada aprendiz debe **crear el fork** de los seis repositorios del proyecto y **resolver el proyecto
-con el spec planteado**.
+Requirements: Docker with Docker Compose v2.
 
-1. Hacer fork, a su cuenta de GitHub, de cada repositorio de la tabla del final.
-2. Leer el spec en [`test-manager-library-3239188-docs`](https://github.com/code-sena/test-manager-library-3239188-docs).
-   Se entrega en dos versiones: `spec-python/` y `spec-.net/`.
-3. Desarrollar en los forks.
+```bash
+cp .env.example .env      # then edit the values, especially POSTGRES_PASSWORD
+docker compose up -d
+```
 
-## El reto se desarrolla con React y PHP (Laravel)
+That is all. `docker compose ps` shows `manager-library-db` as `healthy` after a few seconds.
 
-El spec está escrito para Python y para .NET, pero el reto **no** se hace en esos lenguajes:
+| Service | Image | Host port | What it is |
+|---|---|---|---|
+| `db` | `postgres:16-alpine` | `${POSTGRES_PORT}` (default `5432`) | Empty database `${POSTGRES_DB}`, owned by `${POSTGRES_USER}`, server in UTC |
 
-| Capa | Tecnología del reto |
+The data lives in the named volume `manager-library_db-data`.
+
+Connection string for the API (`api/.env`):
+
+```text
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1      # "db" when the API runs inside this compose network
+DB_PORT=5432
+DB_DATABASE=library
+DB_USERNAME=library
+DB_PASSWORD=<same as POSTGRES_PASSWORD>
+```
+
+## The database starts empty (ADR-001)
+
+This repository creates **only** the engine, the database, the user and the volume. It contains **no table DDL** and no init
+scripts. The schema `library`, the six tables, indexes, constraints and the five seeded categories belong to the **Laravel migrations**
+in the `api` repo. The initial admin is created by the API at startup from `ADMIN_USERNAME` / `ADMIN_PASSWORD`, never by SQL.
+
+Check that it is empty:
+
+```bash
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt *.*"' | grep -v -E "pg_catalog|information_schema"
+grep -riE "create[[:space:]]+table" . --exclude-dir=.git   # must print nothing
+```
+
+After running the API migrations, the queries in `data-model.md` §10 return what that document declares.
+
+## Common commands
+
+| Command | Effect |
 |---|---|
-| Frontend | React |
-| Backend | PHP con Laravel |
+| `docker compose up -d` | Start |
+| `docker compose logs -f db` | Follow database logs |
+| `docker compose down` | Stop, keep data |
+| `docker compose down -v` | Stop and **delete** the volume (back to an empty database) |
 
-Lo que el spec define sobre el negocio —historias, criterios de aceptación, reglas, contrato de la
-API, modelo de datos— se respeta. Lo que define sobre la tecnología se traduce a React y Laravel.
+## Secrets
 
-## La prueba no consiste en escribir el código
+The real `.env` is in `.gitignore`. Only `.env.example` is versioned, with placeholder values.
 
-El propósito principal es ver la **capacidad de desempeño con SDD** (*Spec-Driven Development*,
-desarrollo guiado por especificación): cómo se lee, se interpreta y se aplica una especificación
-para llevarla a un stack distinto. El código es el medio, no el fin.
+## Roadmap
 
-## Entrega
-
-Cuenta lo que quede **subido a los forks antes de las 11:00 p. m.** Lo que llegue después no se revisa.
-No hay prórroga: suban avances parciales con commits pequeños durante la prueba.
-
-## Los seis repositorios
-
-| Repositorio | Qué va ahí |
-|---|---|
-| [`test-manager-library-3239188-docs`](https://github.com/code-sena/test-manager-library-3239188-docs) | El spec: `spec-python/` y `spec-.net/` |
-| [`test-manager-library-3239188-api`](https://github.com/code-sena/test-manager-library-3239188-api) | Backend en PHP (Laravel) |
-| [`test-manager-library-3239188-app`](https://github.com/code-sena/test-manager-library-3239188-app) | Frontend en React |
-| [`test-manager-library-3239188-page`](https://github.com/code-sena/test-manager-library-3239188-page) | Sitio público estático de presentación |
-| [`test-manager-library-3239188-infra`](https://github.com/code-sena/test-manager-library-3239188-infra) | Contenedores, red, volúmenes y motor de base de datos vacío |
-| [`test-manager-library-3239188-tool`](https://github.com/code-sena/test-manager-library-3239188-tool) | Utilidades: sembrador de datos de demostración |
+T-20 adds the `api` (Laravel) and `app` (React) services to this same compose file, so one `docker compose up` starts everything.
